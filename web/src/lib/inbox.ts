@@ -50,6 +50,60 @@ export function seniorityFromTitle(title: string): Seniority | null {
   return null;
 }
 
+// Universal, geography-agnostic remote wording — always eligible for anyone.
+const UNIVERSAL_REMOTE = /\b(anywhere|worldwide|world wide|global)\b/i;
+const BARE_REMOTE = /\b(remote|remoto)\b/i;
+
+/** Cheap, zero-token geo-eligibility hint from a raw location string, judged
+ *  against the CANDIDATE'S OWN authorized regions (read from config/profile.yml
+ *  — nothing hardcoded to one geography). "ok" → universally remote, or the
+ *  location names a region the candidate listed in `authorized_in`/`country`;
+ *  "warn" → it names a concrete place, none of the candidate's regions match,
+ *  and it isn't a bare "remote"; null → nothing to say (empty, an ambiguous
+ *  bare "remote", or the user configured no regions). A user who wants a broader
+ *  region to count as eligible just lists it in `authorized_in`. Recall-first;
+ *  the authoritative work-authorization check stays Block A. */
+export function eligibilityFromLocation(
+  location: string | undefined,
+  authorizedRegions: string[] = [],
+): "ok" | "warn" | null {
+  if (!location) return null;
+  const loc = location.toLowerCase();
+  if (UNIVERSAL_REMOTE.test(loc)) return "ok";
+  if (authorizedRegions.some((r) => r && loc.includes(r))) return "ok";
+  if (BARE_REMOTE.test(loc)) return null;
+  return authorizedRegions.length > 0 ? "warn" : null;
+}
+
+// Generic role words carry no stack signal; drop them before matching a title.
+const STACK_STOP = new Set([
+  "engineer", "engineering", "developer", "development", "senior", "sr", "snr", "staff",
+  "principal", "lead", "junior", "jr", "mid", "of", "and", "the", "role", "software", "dev",
+]);
+
+/** Which of the candidate's target keywords literally appear in a job title — a
+ *  cheap, honest "why this might fit" signal (a real list of hits, never a
+ *  fabricated match%). Splits multi-word target roles into meaningful tokens,
+ *  drops generic role words, and matches short tokens on a word boundary. */
+export function stackHits(title: string, keywords: string[]): string[] {
+  if (!title || !keywords || keywords.length === 0) return [];
+  const t = ` ${title.toLowerCase()} `;
+  const seen = new Set<string>();
+  const hits: string[] = [];
+  for (const kw of keywords) {
+    for (const tok of kw.split(/[\s/,()+&|-]+/)) {
+      const w = tok.trim();
+      const lw = w.toLowerCase();
+      if (w.length < 2 || STACK_STOP.has(lw) || seen.has(lw)) continue;
+      seen.add(lw);
+      const escaped = lw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const matched = lw.length <= 3 ? new RegExp(`\\b${escaped}\\b`).test(t) : t.includes(lw);
+      if (matched) hits.push(w);
+    }
+  }
+  return hits;
+}
+
 /** Whole days between an ISO date (YYYY-MM-DD) and now; null if unparseable. */
 export function daysSince(iso: string | undefined, now: number): number | null {
   if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
