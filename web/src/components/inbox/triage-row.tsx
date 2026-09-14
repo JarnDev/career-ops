@@ -117,8 +117,10 @@ export function TriageRow({
       </div>
 
       {/* Open the original posting — lets the user judge a raw row before spending an eval.
-          Present on every row (evaluated or not); the report/worker link stays separate. */}
-      {job.url && (
+          Present on every row (evaluated or not); the report/worker link stays separate.
+          Guard the scheme: pipeline.md is free text, so only ever render http(s) hrefs
+          (never javascript:/data:), matching apply-view.tsx. */}
+      {job.url && /^https?:\/\//.test(job.url) && (
         <a
           href={job.url}
           target="_blank"

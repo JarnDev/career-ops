@@ -50,9 +50,31 @@ export function seniorityFromTitle(title: string): Seniority | null {
   return null;
 }
 
-// Universal, geography-agnostic remote wording — always eligible for anyone.
-const UNIVERSAL_REMOTE = /\b(anywhere|worldwide|world wide|global)\b/i;
-const BARE_REMOTE = /\b(remote|remoto)\b/i;
+// Truly geography-agnostic remote wording — eligible for anyone. "worldwide" /
+// "global" are unconditional; "anywhere" is universal ONLY when it isn't scoped
+// to a place: "Anywhere in France" means anywhere WITHIN France, so it must be
+// judged against the authorized regions, not waved through on the word alone.
+const GLOBAL_REMOTE = /\b(worldwide|world wide|global|globally)\b/i;
+const ANYWHERE = /\banywhere\b/i;
+function isUniversalRemote(loc: string): boolean {
+  if (GLOBAL_REMOTE.test(loc)) return true;
+  if (!ANYWHERE.test(loc)) return false;
+  // "anywhere in <place>" is scoped to that place unless the place is the world.
+  const scoped = loc.match(/\banywhere\b\s+in\s+(.+)/i);
+  return !scoped || /^the\s+world\b|^world\b/i.test(scoped[1].trim());
+}
+const BARE_REMOTE = /^\s*(?:remote|remoto)\s*$/i;
+
+/** True when an authorized region appears in the location as a COMPLETE name,
+ *  bounded by non-letters (or string edges) on both sides — so a short code
+ *  like "us" can't match inside "Russia" and "uk" can't match "Ukraine".
+ *  Regions are normalized (trimmed, lowercased) and regex-escaped. */
+function regionMatches(loc: string, region: string): boolean {
+  const r = region.trim().toLowerCase();
+  if (!r) return false;
+  const escaped = r.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z])${escaped}($|[^a-z])`, "i").test(loc);
+}
 
 /** Cheap, zero-token geo-eligibility hint from a raw location string, judged
  *  against the CANDIDATE'S OWN authorized regions (read from config/profile.yml
@@ -69,8 +91,8 @@ export function eligibilityFromLocation(
 ): "ok" | "warn" | null {
   if (!location) return null;
   const loc = location.toLowerCase();
-  if (UNIVERSAL_REMOTE.test(loc)) return "ok";
-  if (authorizedRegions.some((r) => r && loc.includes(r))) return "ok";
+  if (isUniversalRemote(loc)) return "ok";
+  if (authorizedRegions.some((r) => regionMatches(loc, r))) return "ok";
   if (BARE_REMOTE.test(loc)) return null;
   return authorizedRegions.length > 0 ? "warn" : null;
 }
