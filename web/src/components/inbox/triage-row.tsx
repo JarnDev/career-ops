@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bookmark, BookmarkCheck, Loader2, X } from "lucide-react";
+import { Bookmark, BookmarkCheck, ExternalLink, Loader2, X } from "lucide-react";
 import type { InboxJob } from "@/lib/career-ops";
 import type { AtsSource } from "@/lib/explore";
 import { ATS_LABEL } from "@/lib/explore";
@@ -79,6 +79,22 @@ export function TriageRow({
           {!evaluated && <span className="italic text-muted">not scored</span>}
         </p>
       </div>
+
+      {/* Open the original posting — lets the user judge a raw row before spending an eval.
+          Present on every row (evaluated or not); the report/worker link stays separate. */}
+      {job.url && (
+        <a
+          href={job.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          title="Open the original posting"
+          aria-label={`Open ${job.company} ${job.role} posting`}
+          className="inline-flex shrink-0 items-center justify-center rounded-md p-1 text-faint transition-colors hover:bg-surface-hover hover:text-brand max-sm:min-h-[44px] max-sm:min-w-[44px]"
+        >
+          <ExternalLink className="size-4" />
+        </a>
+      )}
 
       {/* EVALUADA state (right-aligned, visually distinct from raw rows) */}
       {evaluated ? (
